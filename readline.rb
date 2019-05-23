@@ -1,58 +1,48 @@
+require 'formula'
+
 class Readline < Formula
-  desc "Library for command-line editing"
-  homepage "https://tiswww.case.edu/php/chet/readline/rltop.html"
-  url "https://ftp.gnu.org/gnu/readline/readline-7.0.tar.gz"
-  mirror "https://ftpmirror.gnu.org/readline/readline-7.0.tar.gz"
-  version "7.0.5"
-  sha256 "750d437185286f40a369e1e4f4764eda932b9459b5ec9a731628393dd3d32334"
+  homepage 'http://tiswww.case.edu/php/chet/readline/rltop.html'
+  url 'http://ftpmirror.gnu.org/readline/readline-6.3.tar.gz'
+  mirror 'http://ftp.gnu.org/gnu/readline/readline-6.3.tar.gz'
+  sha256 '56ba6071b9462f980c5a72ab0023893b65ba6debb4eeb475d7a563dc65cafd43'
+  version '6.3.5'
 
   bottle do
     cellar :any
-    sha256 "5976a79f0dbd5ccb2a261f692763319d612309caa2b8cf703f209270764c657c" => :mojave
-    sha256 "0cc8fcf8ee733e41c40b859a09eb00f723222a40398fdd15d32891df1eca2eef" => :high_sierra
-    sha256 "962ae47be894e6d3a354b24953fc6b456c42dc054bcd44092cabf65e734a152b" => :sierra
-    sha256 "a7f92cf74dfd299b0c368a983c6f83fc50395b0392b8465316133c625744bcc5" => :el_capitan
+    sha1 "f18f34972c5164ea4cb94b3311e52fc04ea4b9a9" => :mavericks
+    sha1 "131d59e8bb99e5a9d0270a04e63c07d794750695" => :mountain_lion
+    sha1 "b119b5a05f21f9818b6c99e173597fba62d89b58" => :lion
   end
 
-  keg_only :shadowed_by_macos, <<~EOS
-    macOS provides the BSD libedit library, which shadows libreadline.
-    In order to prevent conflicts when programs look for libreadline we are
-    defaulting this GNU Readline installation to keg-only
-  EOS
+  keg_only <<-EOS
+OS X provides the BSD libedit library, which shadows libreadline.
+In order to prevent conflicts when programs look for libreadline we are
+defaulting this GNU Readline installation to keg-only.
+EOS
 
-  %w[
-    001 9ac1b3ac2ec7b1bf0709af047f2d7d2a34ccde353684e57c6b47ebca77d7a376
-    002 8747c92c35d5db32eae99af66f17b384abaca961653e185677f9c9a571ed2d58
-    003 9e43aa93378c7e9f7001d8174b1beb948deefa6799b6f581673f465b7d9d4780
-    004 f925683429f20973c552bff6702c74c58c2a38ff6e5cf305a8e847119c5a6b64
-    005 ca159c83706541c6bbe39129a33d63bbd76ac594303f67e4d35678711c51b753
-  ].each_slice(2) do |p, checksum|
-    patch :p0 do
-      url "https://ftp.gnu.org/gnu/readline/readline-7.0-patches/readline70-#{p}"
-      mirror "https://ftpmirror.gnu.org/readline/readline-7.0-patches/readline70-#{p}"
-      sha256 checksum
-    end
-  end
+  # Vendor the patches.
+  # The mirrors are unreliable for getting the patches, and the more patches
+  # there are, the more unreliable they get. Pulling this patch inline to
+  # reduce bug reports.
+  # Upstream patches can be found in:
+  # http://git.savannah.gnu.org/cgit/readline.git
+#  patch do
+#    url "https://gist.githubusercontent.com/jacknagel/8df5735ae9273bf5ebb2/raw/827805aa2927211e7c3d9bb871e75843da686671/readline.diff"
+#    sha1 "2d55658a2f01fa14a029b16fea29d20ce7d03b78"
+#  end
 
   def install
-    system "./configure", "--prefix=#{prefix}"
-    system "make", "install"
-  end
+    ENV.universal_binary
+    system "./configure", "--prefix=#{prefix}", "--enable-multibyte"
+    system "make install"
 
-  test do
-    (testpath/"test.c").write <<~EOS
-      #include <stdio.h>
-      #include <stdlib.h>
-      #include <readline/readline.h>
-
-      int main()
-      {
-        printf("%s\\n", readline("test> "));
-        return 0;
-      }
-    EOS
-    system ENV.cc, "-L", lib, "test.c", "-L#{lib}", "-lreadline", "-o", "test"
-    assert_equal "test> Hello, World!\nHello, World!",
-      pipe_output("./test", "Hello, World!\n").strip
+    # The 6.3 release notes say:
+    #   When creating shared libraries on Mac OS X, the pathname written into the
+    #   library (install_name) no longer includes the minor version number.
+    # Software will link against libreadline.6.dylib instead of libreadline.6.3.dylib.
+    # Therefore we create symlinks to avoid bumping the revisions on dependents.
+    # This should be removed at 6.4.
+    lib.install_symlink "libhistory.6.3.dylib" => "libhistory.6.2.dylib",
+                        "libreadline.6.3.dylib" => "libreadline.6.2.dylib"
   end
 end
